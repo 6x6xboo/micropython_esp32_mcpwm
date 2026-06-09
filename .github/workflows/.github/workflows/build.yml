@@ -1,0 +1,46 @@
+name: Build MicroPython ESP32 MCPWM
+on:
+  workflow_dispatch:
+  push:
+    branches: [ dev-esp32-mcpwm ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: dev-esp32-mcpwm
+          submodules: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git wget flex bison gperf python3 python3-pip python3-setuptools python3-serial python3-cryptography python3-future python3-pyparsing python3-pyelftools cmake ninja-build ccache libffi-dev libssl-dev dfu-util
+
+      - name: Setup ESP-IDF v4.0
+        run: |
+          git clone -b v4.0.1 --recursive https://github.com/espressif/esp-idf.git ~/esp-idf
+          cd ~/esp-idf
+          git checkout 463a9d8b7f9af8205222b80707f9bdbba7c530e1
+          export IDF_GITHUB_ASSETS="dl.espressif.cn/github_assets"
+          ./install.sh
+          source ./export.sh
+
+      - name: Build mpy-cross
+        run: |
+          make -C mpy-cross
+
+      - name: Build firmware
+        run: |
+          source ~/esp-idf/export.sh
+          cd ports/esp32
+          make submodules
+          make
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: micropython-mcpwm-firmware
+          path: ports/esp32/build/firmware-combined.bin
